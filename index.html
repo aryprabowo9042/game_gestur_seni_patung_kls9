@@ -1,223 +1,1217 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kuis Kolosal Seni Patung: Benar atau Salah!</title>
-<script src="https://cdn.tailwindcss.com/3.4.17"></script>
-<style>
-:root{color-scheme:light dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-html,body{height:100%;margin:0;background:#1e1b4b;font-family:system-ui,'Segoe UI',sans-serif;overflow:hidden}
-#stage{position:relative;width:100%;height:100%;overflow:hidden;background:linear-gradient(135deg,#312e81,#7c2d12)}
-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.45}
-.zone{position:absolute;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:6vh;font-weight:900;color:#fff;text-shadow:0 2px 8px #0008;transition:opacity .2s;font-size:clamp(1.4rem,4vw,3.5rem);text-align:center}
-.cnt{font-size:clamp(2.5rem,9vw,8rem);line-height:1;margin-top:.3rem}.person{position:absolute;top:58%;width:44px;height:44px;margin-left:-22px;border-radius:50%;background:#fff;border:4px solid #facc15;font-size:24px;display:flex;align-items:center;justify-content:center;transition:left .15s linear;box-shadow:0 0 14px #facc15}.pop{animation:pop .5s ease}
-@keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
-.shake{animation:shake .5s}
-@keyframes shake{25%{transform:translateX(-14px)}75%{transform:translateX(14px)}}
-.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;text-align:center;z-index:20}
-.hidden{display:none!important}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kuis Kolosal Seni Patung: Benar atau Salah!</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Plus Jakarta Sans & Fredoka untuk tampilan edukatif & energik -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- MediaPipe Pose & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        .font-display {
+            font-family: 'Fredoka', sans-serif;
+        }
+        /* Mirroring video dan canvas agar gerakan kanan user sesuai sisi kanan layar */
+        .mirror-view {
+            transform: scaleX(-1);
+        }
+        /* Animasi pulse & bounce kustom */
+        @keyframes pulseFast {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+        .animate-pulse-fast {
+            animation: pulseFast 0.6s infinite ease-in-out;
+        }
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float {
+            animation: floatSlow 3s infinite ease-in-out;
+        }
+        /* Zona aktif glow */
+        .zone-active-left {
+            background: linear-gradient(to right, rgba(220, 38, 38, 0.72), rgba(239, 68, 68, 0.45)) !important;
+            box-shadow: inset 0 0 60px rgba(254, 202, 202, 0.85);
+            border-right: 6px solid #fca5a5 !important;
+        }
+        .zone-active-center {
+            background: rgba(234, 179, 8, 0.25) !important;
+        }
+        .zone-active-right {
+            background: linear-gradient(to left, rgba(22, 163, 74, 0.72), rgba(34, 197, 94, 0.45)) !important;
+            box-shadow: inset 0 0 60px rgba(187, 247, 208, 0.85);
+            border-left: 6px solid #86efac !important;
+        }
+        /* Custom scrollbar untuk ringkasan soal */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.5);
+            border-radius: 10px;
+        }
+    </style>
 </head>
-<body>
-<div id="stage">
-  <video id="cam" playsinline muted></video>
-  <canvas id="fx" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:15"></canvas>
+<body class="bg-slate-950 text-white min-h-screen w-full relative overflow-hidden">
 
-  <!-- zona -->
-  <div id="zones" class="hidden">
-    <div id="zL" class="zone" style="left:0;width:40%;background:rgba(239,68,68,.35)">❌ SALAH<br>FALSE<div id="cL" class="cnt">0</div><div class="text-base md:text-2xl">orang</div></div>
-    <div id="zM" class="zone" style="left:40%;width:20%;background:rgba(250,204,21,.25)">SIAP-<br>SIAP<div id="cM" class="cnt">0</div><div class="text-base md:text-2xl">orang</div></div>
-    <div id="zR" class="zone" style="left:60%;width:40%;background:rgba(34,197,94,.35)">✅ BENAR<br>TRUE<div id="cR" class="cnt">0</div><div class="text-base md:text-2xl">orang</div></div>
-    <div id="people"></div>
-  </div>
-
-  <!-- HUD -->
-  <div id="hud" class="hidden absolute top-0 left-0 right-0 p-3 md:p-5" style="z-index:10">
-    <div class="flex justify-between items-center text-white font-extrabold text-lg md:text-3xl mb-2">
-      <span id="prog" class="bg-indigo-700/90 rounded-full px-4 py-1">Soal 1 dari 10</span>
-      <span id="timer" class="bg-amber-500 rounded-full px-5 py-1 text-indigo-950">7</span>
-      <span id="score" class="bg-emerald-600/90 rounded-full px-4 py-1">Skor: 0</span>
+    <!-- ==================== LAYER KAMERA & VISUAL TRACKING GLOBAL ==================== -->
+    <div id="camera-container" class="fixed inset-0 w-full h-full z-0 bg-slate-900">
+        <!-- Video Webcam asli (hidden/background) -->
+        <video id="webcam-video" class="w-full h-full object-cover mirror-view opacity-85" autoplay playsinline muted></video>
+        <!-- Canvas Overlay untuk titik deteksi tubuh -->
+        <canvas id="pose-canvas" class="fixed inset-0 w-full h-full pointer-events-none mirror-view"></canvas>
+        <!-- Latar gradien fallback jika kamera belum aktif / mode simulasi -->
+        <div id="camera-fallback-bg" class="fixed inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 flex items-center justify-center">
+            <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#6366f1 1.5px, transparent 1.5px); background-size: 32px 32px;"></div>
+        </div>
     </div>
-    <div id="q" class="bg-white/95 text-indigo-950 rounded-3xl shadow-2xl p-4 md:p-7 font-extrabold text-center leading-snug" style="font-size:clamp(1.15rem,3vw,2.6rem)"></div>
-    <div class="h-3 bg-white/30 rounded-full mt-3 overflow-hidden"><div id="bar" class="h-full bg-amber-400" style="width:100%"></div></div>
-  </div>
 
-  <div id="ctl" class="hidden absolute left-3 bottom-3 flex gap-2" style="z-index:19"><button id="btnAdd" class="bg-indigo-600 text-white rounded-full px-4 py-2 font-bold">➕ Peserta</button><button id="btnDel" class="bg-indigo-600 text-white rounded-full px-4 py-2 font-bold">➖</button></div>
-  <!-- umpan balik -->
-  <div id="fb" class="screen hidden pointer-events-none" style="z-index:18"></div>
+    <!-- ==================== OVERLAY ZONA GESTUR (KIRI - TENGAH - KANAN) ==================== -->
+    <div id="gesture-zones" class="fixed inset-0 z-10 grid grid-cols-12 pointer-events-none transition-all duration-300 opacity-0">
+        <!-- ZONA KIRI: SALAH (38% layar -> ~4.5 kolom, kita pakai flex presisi) -->
+        <div id="zone-left" style="width: 38%;" class="fixed left-0 top-0 bottom-0 bg-red-600/30 border-r-2 border-dashed border-red-300/60 flex flex-col justify-end pb-10 sm:pb-14 items-center transition-all duration-200 pointer-events-auto cursor-pointer" onclick="handleManualZoneSelect('SALAH')">
+            <div class="bg-red-600/90 backdrop-blur-md border-2 border-red-300 px-5 py-3 sm:px-8 sm:py-4 rounded-3xl shadow-2xl flex flex-col items-center transform transition-transform" id="badge-left">
+                <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-white text-red-600 flex items-center justify-center mb-1 shadow-inner">
+                    <svg class="w-8 h-8 sm:w-10 sm:h-10 stroke-[3.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </div>
+                <span class="font-display text-2xl sm:text-4xl font-bold tracking-wider text-white drop-shadow">SALAH</span>
+                <span class="text-xs sm:text-sm font-semibold text-red-100 uppercase tracking-widest mt-0.5">Geser Kiri</span>
+            </div>
+        </div>
 
-  <!-- landing -->
-  <div id="landing" class="screen bg-gradient-to-br from-indigo-900/95 to-orange-900/95 text-white">
-    <div class="text-6xl md:text-8xl mb-2">🗿</div>
-    <h1 class="font-black text-3xl md:text-6xl leading-tight text-amber-300">Kuis Kolosal Seni Patung</h1>
-    <h2 class="font-black text-2xl md:text-5xl mb-4">Benar atau Salah!</h2>
-    <p class="mb-3 text-sm md:text-xl opacity-90">Seni Budaya Kelas 9 • Jenis, Fungsi, Bahan, dan Teknik Seni Patung</p>
-    <div class="grid grid-cols-3 gap-2 md:gap-4 max-w-3xl w-full mb-4 text-sm md:text-xl font-bold">
-      <div class="rounded-2xl p-3 bg-red-500/80">⬅️ Geser KIRI<br>= SALAH</div>
-      <div class="rounded-2xl p-3 bg-yellow-400/90 text-indigo-950">Tengah<br>= Siap-siap</div>
-      <div class="rounded-2xl p-3 bg-green-500/80">Geser KANAN ➡️<br>= BENAR</div>
+        <!-- ZONA TENGAH: SIAP-SIAP (24% layar) -->
+        <div id="zone-center" style="left: 38%; width: 24%;" class="fixed top-0 bottom-0 bg-amber-500/15 flex flex-col justify-end pb-10 sm:pb-14 items-center transition-all duration-200">
+            <div class="bg-amber-500/85 backdrop-blur-md border-2 border-amber-200 px-4 py-2 sm:px-6 sm:py-3 rounded-2xl shadow-xl flex flex-col items-center">
+                <span class="font-display text-lg sm:text-2xl font-bold text-slate-950 tracking-wide">SIAP-SIAP</span>
+                <span class="text-[11px] sm:text-xs font-bold text-slate-900 uppercase">Posisi Netral</span>
+            </div>
+        </div>
+
+        <!-- ZONA KANAN: BENAR (38% layar) -->
+        <div id="zone-right" style="width: 38%;" class="fixed right-0 top-0 bottom-0 bg-emerald-600/30 border-l-2 border-dashed border-emerald-300/60 flex flex-col justify-end pb-10 sm:pb-14 items-center transition-all duration-200 pointer-events-auto cursor-pointer" onclick="handleManualZoneSelect('BENAR')">
+            <div class="bg-emerald-600/90 backdrop-blur-md border-2 border-emerald-300 px-5 py-3 sm:px-8 sm:py-4 rounded-3xl shadow-2xl flex flex-col items-center transform transition-transform" id="badge-right">
+                <div class="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-white text-emerald-600 flex items-center justify-center mb-1 shadow-inner">
+                    <svg class="w-8 h-8 sm:w-10 sm:h-10 stroke-[3.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <span class="font-display text-2xl sm:text-4xl font-bold tracking-wider text-white drop-shadow">BENAR</span>
+                <span class="text-xs sm:text-sm font-semibold text-emerald-100 uppercase tracking-widest mt-0.5">Geser Kanan</span>
+            </div>
+        </div>
     </div>
-    <p class="text-xs md:text-base max-w-2xl mb-4 opacity-90">Mainkan bersama satu kelas! Semua siswa berdiri di depan kamera, dan sistem menghitung berapa orang di sisi BENAR dan SALAH. Kamu punya 10 detik per soal untuk pindah posisi, dan ada hitungan siap-siap 5 detik sebelum soal pertama. Jawaban dikunci sesuai posisi terakhirmu. Tanpa kamera (mode guru)? Klik layar untuk menambah atau menggeser peserta; tombol ➕ ➖ menambah/mengurangi.</p>
-    <div class="flex flex-wrap gap-3 justify-center">
-      <button id="btnCam" class="bg-sky-500 hover:bg-sky-400 rounded-full px-6 py-3 font-extrabold text-lg md:text-2xl shadow-lg">📷 Aktifkan Kamera</button>
-      <button id="btnStart" class="bg-amber-400 hover:bg-amber-300 text-indigo-950 rounded-full px-8 py-3 font-black text-lg md:text-2xl shadow-lg">▶ Mulai Game</button>
+
+    <!-- ==================== INDIKATOR AVATAR / POSISI PEMAIN REALTIME ==================== -->
+    <div id="player-tracker-pill" class="hidden fixed bottom-36 sm:bottom-44 z-20 -translate-x-1/2 transition-all duration-75 pointer-events-none">
+        <div class="flex flex-col items-center">
+            <div id="tracker-bubble" class="px-4 py-1.5 rounded-full bg-amber-400 text-slate-950 font-extrabold text-xs sm:text-sm shadow-lg border-2 border-white whitespace-nowrap">
+                POSISI KAMU: TENGAH
+            </div>
+            <div class="w-4 h-4 bg-white rotate-45 -mt-2 shadow"></div>
+        </div>
     </div>
-    <p id="camStatus" class="mt-3 text-sm md:text-lg font-semibold text-amber-200">Kamera belum aktif (mode keyboard/sentuh).</p>
-  </div>
 
-  <!-- hasil -->
-  <div id="result" class="screen hidden bg-gradient-to-br from-indigo-900/95 to-fuchsia-900/95 text-white">
-    <div class="text-sm md:text-2xl font-bold opacity-80">Permainan Selesai!</div>
-    <div id="stars" class="text-6xl md:text-8xl my-2"></div>
-    <div id="finalScore" class="font-black text-6xl md:text-8xl text-amber-300"></div><div id="detail" class="text-xl md:text-3xl font-bold mt-1"></div>
-    <div id="msg" class="text-lg md:text-3xl font-bold my-3"></div>
-    <button id="btnAgain" class="bg-amber-400 hover:bg-amber-300 text-indigo-950 rounded-full px-8 py-3 font-black text-xl md:text-3xl shadow-lg">🔄 Main Lagi</button>
-  </div>
-</div>
+    <!-- ==================== 1. HALAMAN UTAMA (LANDING SCREEN) ==================== -->
+    <main id="screen-landing" class="relative z-30 min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
+        <div class="max-w-4xl w-full bg-slate-900/90 border-2 border-indigo-500/40 rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl">
+            
+            <!-- Badge Mapel -->
+            <div class="flex flex-wrap items-center justify-center gap-2 mb-4">
+                <span class="px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-bold text-xs sm:text-sm tracking-wide uppercase">
+                    🎨 Seni Budaya • Kelas 9 SMP
+                </span>
+                <span class="px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-bold text-xs sm:text-sm tracking-wide uppercase">
+                    🏃‍♂️ Mode Gestur Tubuh Kolosal
+                </span>
+            </div>
 
-<script>
-const BANK=[
-["Patung Monumen dibuat dengan tujuan utama untuk memperingati peristiwa sejarah atau jasa seorang pahlawan.",true,"Patung monumen memang untuk memperingati sejarah/pahlawan."],
-["Patung Religi berfungsi untuk melengkapi keindahan interior atau eksterior ruangan.",false,"Patung religi berfungsi sebagai sarana ibadah."],
-["Patung Arsitektur berfungsi untuk menunjang konstruksi dan keindahan bangunan.",true,"Patung arsitektur menunjang konstruksi dan keindahan bangunan."],
-["Patung Dekorasi dibuat khusus untuk media pembelajaran di sekolah.",false,"Patung dekorasi untuk memperindah taman/ruangan."],
-["Patung Figuratif/Realis adalah patung yang bentuknya meniru alam (manusia, hewan, tumbuhan).",true,"Figuratif/realis meniru bentuk alam."],
-["Patung Non-figuratif/Abstrak adalah patung yang bentuknya menyerupai bentuk alami secara persis.",false,"Abstrak terlepas dari bentuk alamiah (garis, bidang, bentuk abstrak)."],
-["Teknik Pahat digunakan pada bahan lunak seperti tanah liat dan lilin.",false,"Pahat dipakai untuk bahan keras seperti batu dan kayu."],
-["Teknik Butsir adalah teknik membuat patung dengan mengurangi dan menambah bahan lunak menggunakan alat butsir.",true,"Butsir: mengurangi dan menambah bahan lunak."],
-["Teknik Cor (Cetak) dilakukan dengan mencairkan bahan (semen, gips, logam) lalu dituangkan ke cetakan.",true,"Cor/cetak: bahan cair dituang ke cetakan."],
-["Bahan lunak untuk membuat patung antara lain kayu jati, batu granit, dan besi.",false,"Bahan lunak: tanah liat, plastisin, sabun batang."],
-["Sabun batang dan plastisin termasuk contoh bahan sedang dalam pembuatan patung.",false,"Sabun batang dan plastisin adalah bahan lunak."],
-["Kayu waru, kayu randu, dan kayu sengon termasuk contoh bahan sedang.",true,"Kayu waru, randu, sengon adalah bahan sedang."],
-["Kayu jati, kayu mahoni, dan kayu sonokeling merupakan bahan keras untuk membuat patung.",true,"Ketiganya termasuk bahan keras."],
-["Patung Free Standing adalah patung yang berdiri sendiri tanpa menempel pada dinding/latar belakang.",true,"Free standing berdiri sendiri."],
-["Relief adalah patung 3 dimensi yang dapat dilihat dari segala arah 360 derajat secara bebas.",false,"Relief menempel pada bidang datar/dinding."],
-["Alat \"Palu dan Pahat\" umum digunakan pada pembuatan patung dengan bahan batu atau kayu keras.",true,"Palu dan pahat cocok untuk bahan keras."],
-["Fungsi personal patung adalah patung yang diciptakan untuk memenuhi kebutuhan estetika/ungkapan perasaan pribadi penciptanya.",true,"Fungsi personal: ekspresi pribadi pencipta."],
-["Fungsi sosial patung adalah patung yang hanya dinikmati oleh pembuatnya sendiri tanpa melibatkan orang lain.",false,"Fungsi sosial untuk kepentingan masyarakat/peringatan bersama."],
-["Semen dan gips termasuk bahan cor/cetak yang sering dipakai dalam seni patung.",true,"Semen dan gips adalah bahan cor/cetak."],
-["Teknik Assembling/Merakit dilakukan dengan cara memotong dan membuang bagian batu menggunakan pisau khusus.",false,"Assembling: merangkai/menyambung berbagai bahan menjadi satu bentuk."]
-];
-const TIME=10;
-const $=id=>document.getElementById(id);
-let qs=[],idx=0,score=0,t=TIME,tick=null,phase='landing',posX=0.5,side='mid',locked=false,answered=false,people=[0.5],sumC=0,sumT=0;
-let stream=null,tracker=null,landmarker=null,mode='manual';
+            <!-- Judul Besar -->
+            <h1 class="font-display text-3xl sm:text-5xl lg:text-6xl font-bold text-center bg-gradient-to-r from-amber-300 via-white to-emerald-300 bg-clip-text text-transparent leading-tight mb-3">
+                Kuis Kolosal Seni Patung:<br>Benar atau Salah!
+            </h1>
+            <p class="text-slate-300 text-center text-sm sm:text-lg max-w-2xl mx-auto mb-6">
+                Uji pemahamanmu tentang <strong>Jenis, Fungsi, Bahan, dan Teknik Seni Patung</strong>! Berdiri di depan kamera dan gerakkan tubuhmu ke kanan atau ke kiri untuk menjawab 10 soal acak!
+            </p>
 
-/* ---------- audio ---------- */
-let ac;function beep(f,d,type='sine',v=.2,when=0){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(ac.destination);const s=ac.currentTime+when;o.start(s);g.gain.exponentialRampToValueAtTime(.001,s+d);o.stop(s+d)}catch(e){}}
-const sfxOk=()=>[523,659,784,1047].forEach((f,i)=>beep(f,.25,'triangle',.25,i*.1));
-const sfxBad=()=>[300,220,160].forEach((f,i)=>beep(f,.3,'sawtooth',.15,i*.13));
-const sfxTick=()=>beep(900,.08,'square',.08);
+            <!-- Panduan Visual 3 Zona -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+                <div class="bg-red-950/60 border-2 border-red-500/60 rounded-2xl p-4 flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center font-display text-2xl font-bold mb-2 shadow-lg">✕</div>
+                    <h3 class="font-display text-lg sm:text-xl font-bold text-red-300">AREA KIRI</h3>
+                    <p class="text-xs sm:text-sm text-slate-300 mt-1">Berdiri/geser ke sisi <strong>KIRI</strong> layar untuk menjawab <span class="text-red-400 font-bold">SALAH</span></p>
+                </div>
 
-/* ---------- konfeti ---------- */
-const fx=$('fx'),cx=fx.getContext('2d');let parts=[];
-function resize(){fx.width=innerWidth;fx.height=innerHeight}addEventListener('resize',resize);resize();
-function burst(colors,n=140){for(let i=0;i<n;i++)parts.push({x:innerWidth/2,y:innerHeight/2,vx:(Math.random()-.5)*22,vy:(Math.random()-.8)*20,s:6+Math.random()*8,c:colors[i%colors.length],l:90})}
-(function loop(){cx.clearRect(0,0,fx.width,fx.height);parts=parts.filter(p=>p.l>0);for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=.5;p.l--;cx.fillStyle=p.c;cx.globalAlpha=Math.min(1,p.l/30);cx.fillRect(p.x,p.y,p.s,p.s)}cx.globalAlpha=1;requestAnimationFrame(loop)})();
+                <div class="bg-amber-950/50 border-2 border-amber-500/50 rounded-2xl p-4 flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-display text-2xl font-bold mb-2 shadow-lg">🧍</div>
+                    <h3 class="font-display text-lg sm:text-xl font-bold text-amber-300">AREA TENGAH</h3>
+                    <p class="text-xs sm:text-sm text-slate-300 mt-1">Posisi awal <strong>SIAP-SIAP</strong> sebelum menentukan pilihan jawaban</p>
+                </div>
 
-/* ---------- posisi & zona ---------- */
-function zoneOf(x){return x<0.4?'L':x>0.6?'R':'mid'}
-function setPos(x){people[0]=Math.max(.03,Math.min(.97,x));renderPeople()}
-function setPeople(a){people=a.map(x=>Math.max(.03,Math.min(.97,x)));renderPeople()}
-function counts(){const c={L:0,mid:0,R:0};people.forEach(x=>c[zoneOf(x)]++);return c}
-function upScore(){$('score').textContent='Benar: '+sumC+'/'+sumT}
-function renderPeople(){const box=$('people');while(box.children.length<people.length){const d=document.createElement('div');d.className='person';d.textContent='🧍';box.appendChild(d)}while(box.children.length>people.length)box.lastChild.remove();people.forEach((x,i)=>box.children[i].style.left=(x*100)+'%');const c=counts();$('cL').textContent=c.L;$('cM').textContent=c.mid;$('cR').textContent=c.R;$('zL').style.opacity=c.L?1:.6;$('zR').style.opacity=c.R?1:.6;$('zM').style.opacity=c.mid?1:.6}
-function _o(){
-  }
+                <div class="bg-emerald-950/60 border-2 border-emerald-500/60 rounded-2xl p-4 flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-display text-2xl font-bold mb-2 shadow-lg">✓</div>
+                    <h3 class="font-display text-lg sm:text-xl font-bold text-emerald-300">AREA KANAN</h3>
+                    <p class="text-xs sm:text-sm text-slate-300 mt-1">Berdiri/geser ke sisi <strong>KANAN</strong> layar untuk menjawab <span class="text-emerald-400 font-bold">BENAR</span></p>
+                </div>
+            </div>
 
-/* input manual: keyboard + sentuh/mouse */
-addEventListener('keydown',e=>{if(mode!=='manual')return;if(e.key==='ArrowLeft')setPeople(people.map(x=>x-.08));if(e.key==='ArrowRight')setPeople(people.map(x=>x+.08))});
-let drag=false;const stage=$('stage');
-let dragI=-1;
-stage.addEventListener('pointerdown',e=>{if(mode!=='manual'||e.target.closest('button')||!(phase==='play'||phase==='ready'))return;const x=e.clientX/innerWidth;let b=-1,bd=.08;people.forEach((p,i)=>{if(Math.abs(p-x)<bd){bd=Math.abs(p-x);b=i}});if(b<0){people.push(x);b=people.length-1}dragI=b;drag=true;setPeople(people)});
-stage.addEventListener('pointermove',e=>{if(drag&&mode==='manual'&&dragI>=0){people[dragI]=e.clientX/innerWidth;setPeople(people)}});
-addEventListener('pointerup',()=>drag=false);
+            <!-- Pengaturan Timer & Status Kamera -->
+            <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                <!-- Pilihan Durasi Timer -->
+                <div class="flex flex-col sm:flex-row items-center gap-3">
+                    <span class="text-sm font-bold text-slate-300">⏱️ Waktu per Soal:</span>
+                    <div class="flex items-center gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+                        <button type="button" onclick="setQuestionDuration(5)" id="dur-5" class="dur-btn px-3.5 py-1.5 rounded-lg text-sm font-bold transition text-slate-400 hover:text-white">5 Detik</button>
+                        <button type="button" onclick="setQuestionDuration(7)" id="dur-7" class="dur-btn px-3.5 py-1.5 rounded-lg text-sm font-bold transition bg-indigo-600 text-white shadow">7 Detik</button>
+                        <button type="button" onclick="setQuestionDuration(10)" id="dur-10" class="dur-btn px-3.5 py-1.5 rounded-lg text-sm font-bold transition text-slate-400 hover:text-white">10 Detik</button>
+                    </div>
+                </div>
 
-/* ---------- kamera ---------- */
-async function enableCam(){
-  const st=$('camStatus');st.textContent='Meminta izin kamera...';
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});
-    const v=$('cam');v.srcObject=stream;await v.play();
-  }catch(e){st.textContent='Kamera tidak bisa diakses ('+(e.name||'error')+'). Pakai mode keyboard/sentuh.';return}
-  mode='cam';setPeople([]);st.textContent='Kamera aktif. Memuat deteksi pose...';
-  startMotionTracker();
-  loadPose(st);
-}
-/* cadangan: pelacak gerak (selisih frame) berjalan tanpa model */
-function startMotionTracker(){
-  const c=document.createElement('canvas');c.width=64;c.height=48;const g=c.getContext('2d',{willReadFrequently:true});let bg=null,sm=0.5;
-  tracker=setInterval(()=>{
-    if(landmarker&&landmarker.ok)return;
-    const v=$('cam');if(v.readyState<2)return;
-    g.drawImage(v,0,0,64,48);const d=g.getImageData(0,0,64,48).data;const cur=new Float32Array(3072);
-    for(let i=0;i<3072;i++)cur[i]=(d[i*4]+d[i*4+1]+d[i*4+2])/3;
-    if(!bg){bg=cur.slice();return}
-    let n=0;const col=new Array(64).fill(0);
-    for(let i=0;i<3072;i++){if(Math.abs(cur[i]-bg[i])>38){n++;col[i%64]++}bg[i]=bg[i]*.99+cur[i]*.01}
-    if(n>40){const res=[];let s=-1;for(let c=0;c<=64;c++){const on=c<64&&col[c]>=2;if(on&&s<0)s=c;if(!on&&s>=0){const w=c-s;if(w>=2){const k=Math.max(1,Math.round(w/7));for(let j=0;j<k;j++)res.push(1-(s+(j+.5)*w/k)/64)}s=-1}}if(res.length)setPeople(res)}
-  },80);
-}
-/* MediaPipe Pose (jika model berhasil dimuat) */
-async function loadPose(st){
-  try{
-    const T=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
-    const fs=await T.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
-    const pl=await T.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'},runningMode:'VIDEO',numPoses:12});
-    landmarker={ok:true};st.textContent='Kamera + MediaPipe Pose aktif ✔';
-    const v=$('cam');let last=-1;
-    (function run(){
-      if(v.currentTime!==last){last=v.currentTime;
-        const r=pl.detectForVideo(v,performance.now());
-        if(r.landmarks)setPeople(r.landmarks.map(L=>1-[11,12,23,24].reduce((a,i)=>a+L[i].x,0)/4))}
-      requestAnimationFrame(run)})();
-  }catch(e){landmarker=null;st.textContent='Kamera aktif (mode pelacak gerak: bergeraklah ke kiri/kanan) ✔'}
-}
+                <!-- Status Sensor Kamera -->
+                <div class="flex items-center gap-3">
+                    <div id="camera-status-badge" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs sm:text-sm font-semibold text-slate-300">
+                        <span id="camera-dot" class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span id="camera-status-text">Kamera belum diaktifkan</span>
+                    </div>
+                    <button type="button" id="btn-enable-camera" onclick="initCameraAndPose()" class="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-bold text-xs sm:text-sm transition shadow-lg cursor-pointer">
+                        📷 Aktifkan Kamera
+                    </button>
+                </div>
+            </div>
 
-/* ---------- alur game ---------- */
-function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function show(id,on){$(id).classList.toggle('hidden',!on)}
-function startGame(){
-  if(ac&&ac.state==='suspended')ac.resume();
-  qs=shuffle(BANK).slice(0,10);idx=0;score=0;sumC=0;sumT=0;
-  ['landing','result','fb'].forEach(i=>show(i,false));['zones','hud'].forEach(i=>show(i,true));
-  if(mode==='manual')setPeople([.5]);show('ctl',mode==='manual');renderPeople();getReady();
-}
-function getReady(){
-  phase='ready';let c=5;const f=$('fb');f.className='screen pop';f.style.background='rgba(30,27,75,.45)';show('fb',true);
-  const draw=()=>{f.innerHTML='<div class="font-black text-amber-300 text-3xl md:text-6xl">SIAP-SIAP! Berdiri di tengah</div><div class="font-black text-white" style="font-size:clamp(5rem,20vw,14rem)">'+c+'</div>'};
-  draw();const iv=setInterval(()=>{c--;if(c<=0){clearInterval(iv);nextQ()}else{draw();sfxTick()}},1000);
-}
-function nextQ(){
-  if(idx>=10)return finish();
-  phase='play';answered=false;t=TIME;
-  $('prog').textContent='Soal '+(idx+1)+' dari 10';upScore();
-  $('q').textContent=qs[idx][0];$('q').classList.remove('pop');void $('q').offsetWidth;$('q').classList.add('pop');
-  $('timer').textContent=t;$('bar').style.transition='none';$('bar').style.width='100%';
-  requestAnimationFrame(()=>{$('bar').style.transition='width '+TIME+'s linear';$('bar').style.width='0%'});
-  show('fb',false);renderPeople();
-  clearInterval(tick);tick=setInterval(()=>{t--;$('timer').textContent=Math.max(t,0);if(t>0&&t<=3)sfxTick();if(t<=0){clearInterval(tick);lock()}},1000);
-}
-function lock(){
-  if(answered)return;answered=true;phase='reveal';
-  const q=qs[idx];const c=counts();const nOk=q[1]?c.R:c.L,nTot=people.length,nBad=nTot-nOk;sumC+=nOk;sumT+=nTot;
-  const ok=nTot>0&&nOk>nBad;
-  if(ok){sfxOk();burst(['#facc15','#22c55e','#38bdf8','#f472b6'])}else{sfxBad();stage.classList.add('shake');setTimeout(()=>stage.classList.remove('shake'),500)}
-  upScore();
-  const f=$('fb');f.className='screen pop';f.style.background=ok?'rgba(22,163,74,.88)':'rgba(220,38,38,.88)';
-  f.innerHTML='<div class="text-7xl md:text-9xl">'+(nTot?(ok?'🎉':'😅'):'🤷')+'</div><div class="font-black text-white text-4xl md:text-7xl my-2">'+(nTot?(ok?'KELAS BENAR!':'BELUM TEPAT!'):'TIDAK ADA PEMAIN')+'</div><div class="text-white font-black text-2xl md:text-5xl mb-2">👥 '+nTot+' orang • ✅ '+nOk+' benar • ❌ '+nBad+' salah (termasuk yang di tengah)</div><div class="text-white font-bold text-lg md:text-3xl max-w-4xl">Jawaban: '+(q[1]?'BENAR':'SALAH')+'<br><span class="font-semibold">'+q[2]+'</span></div>';
-  setTimeout(()=>{idx++;nextQ()},3800);
-}
-function finish(){
-  phase='result';clearInterval(tick);['zones','hud','fb','ctl'].forEach(i=>show(i,false));show('result',true);
-  const pct=sumT?Math.round(sumC/sumT*100):0;const n=pct>=85?3:pct>=65?2:pct>=40?1:0;
-  $('stars').textContent='⭐'.repeat(n)+'☆'.repeat(3-n);
-  $('finalScore').textContent=pct+'%';$('detail').textContent='Total '+sumC+' dari '+sumT+' jawaban peserta benar';
-  $('msg').textContent=pct===100?'Sempurna! Kamu Maestro Patung! 🏆':pct>=70?'Hebat! Pemahamanmu sangat baik! 👏':pct>=40?'Lumayan! Ayo belajar lagi biar makin jago! 💪':'Jangan menyerah, coba lagi ya! 🌟';
-  if(pct>=70){sfxOk();burst(['#facc15','#f472b6','#38bdf8','#22c55e'],220)}
-}
-$('btnAdd').onclick=()=>{people.push(.2+Math.random()*.6);renderPeople()};$('btnDel').onclick=()=>{people.pop();renderPeople()};$('btnCam').onclick=enableCam;$('btnStart').onclick=startGame;$('btnAgain').onclick=startGame;
-</script>
+            <!-- Tombol Aksi Utama -->
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button type="button" id="btn-start-camera-game" onclick="startGame(true)" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-white font-display text-xl sm:text-2xl font-bold shadow-xl shadow-emerald-950/50 transition flex items-center justify-center gap-3 cursor-pointer">
+                    <span>🚀 MULAI GAME (KAMERA)</span>
+                </button>
+
+                <button type="button" onclick="startGame(false)" class="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border-2 border-slate-600 active:scale-95 text-slate-200 font-bold text-sm sm:text-base transition flex items-center justify-center gap-2 cursor-pointer" title="Gunakan klik layar jika proyektor/PC tidak memiliki webcam">
+                    <span>🖱️ Mode Tanpa Kamera (Klik)</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== 2. HALAMAN KUIS (GAMEPLAY SCREEN) ==================== -->
+    <section id="screen-gameplay" class="hidden relative z-20 min-h-screen w-full flex flex-col justify-between p-4 sm:p-6 pointer-events-none">
+        
+        <!-- Header Atas: Nomor Soal, Timer Countdown Besar, dan Skor -->
+        <div class="w-full max-w-6xl mx-auto flex items-center justify-between gap-3 pointer-events-auto">
+            <!-- Progres Soal -->
+            <div class="bg-slate-900/90 backdrop-blur-md border-2 border-indigo-400/50 px-4 py-2.5 sm:px-6 sm:py-3.5 rounded-2xl shadow-xl">
+                <div class="text-xs text-indigo-300 font-bold uppercase tracking-wider">Progres Kuis</div>
+                <div id="hud-progress" class="font-display text-xl sm:text-3xl font-bold text-white">Soal 1 / 10</div>
+            </div>
+
+            <!-- Timer Countdown Tengah -->
+            <div id="timer-box" class="bg-slate-900/95 backdrop-blur-md border-4 border-amber-400 px-6 py-2.5 sm:px-8 sm:py-3.5 rounded-3xl shadow-2xl flex flex-col items-center min-w-[120px] sm:min-w-[150px] transition-colors">
+                <span class="text-[10px] sm:text-xs font-extrabold uppercase tracking-widest text-amber-300">Sisa Waktu</span>
+                <span id="hud-timer" class="font-display text-4xl sm:text-6xl font-bold text-white leading-none mt-0.5">7</span>
+            </div>
+
+            <!-- Skor & Tombol Keluar -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div class="bg-slate-900/90 backdrop-blur-md border-2 border-emerald-400/50 px-4 py-2.5 sm:px-6 sm:py-3.5 rounded-2xl shadow-xl text-right">
+                    <div class="text-xs text-emerald-300 font-bold uppercase tracking-wider">Skor Saat Ini</div>
+                    <div id="hud-score" class="font-display text-xl sm:text-3xl font-bold text-emerald-400">0</div>
+                </div>
+                <button type="button" onclick="confirmExitToMenu()" class="p-3 sm:p-4 rounded-2xl bg-slate-900/90 hover:bg-red-600/90 border-2 border-slate-700 text-slate-300 hover:text-white transition shadow-xl cursor-pointer" title="Kembali ke Menu Utama">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Kartu Soal Besar di Tengah Atas (Sangat Jelas untuk Proyektor Kelas) -->
+        <div class="w-full max-w-5xl mx-auto my-auto pt-2 pb-28 sm:pb-36 pointer-events-auto">
+            <div class="bg-slate-950/90 backdrop-blur-xl border-2 border-white/25 rounded-3xl p-6 sm:p-8 lg:p-10 shadow-[0_20px_60px_rgba(0,0,0,0.85)] text-center relative overflow-hidden">
+                <!-- Garis indikator kategori -->
+                <div class="inline-block px-4 py-1 rounded-full bg-indigo-600/40 border border-indigo-400/50 text-indigo-200 text-xs sm:text-sm font-bold uppercase tracking-wider mb-3" id="question-category">
+                    Topik: Seni Patung Kelas 9
+                </div>
+                
+                <!-- Teks Pernyataan Soal -->
+                <h2 id="question-text" class="text-xl sm:text-3xl lg:text-4xl font-extrabold text-white leading-snug sm:leading-tight tracking-tight">
+                    Memuat pertanyaan...
+                </h2>
+
+                <!-- Instruksi Mode Klik / Status Pilihan Terdeteksi -->
+                <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
+                    <div id="live-choice-indicator" class="px-5 py-2 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-200 text-sm sm:text-base font-bold">
+                        ⏳ Silakan bergerak ke Kanan (BENAR) atau Kiri (SALAH)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spacer bawah agar tidak menutupi badge zona -->
+        <div class="h-4"></div>
+    </section>
+
+    <!-- ==================== 3. OVERLAY FEEDBACK ANTAR SOAL ==================== -->
+    <div id="screen-feedback" class="hidden fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
+        <div id="feedback-card" class="max-w-2xl w-full bg-slate-900 border-4 border-emerald-500 rounded-3xl p-6 sm:p-8 text-center shadow-2xl transform transition-all">
+            <!-- Ikon Status -->
+            <div id="feedback-icon" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full mx-auto mb-4 flex items-center justify-center text-4xl sm:text-5xl font-bold shadow-xl">
+                ✓
+            </div>
+            
+            <!-- Judul Feedback -->
+            <h2 id="feedback-title" class="font-display text-3xl sm:text-5xl font-bold mb-2">
+                JAWABAN BENAR!
+            </h2>
+
+            <!-- Info Pilihan Pemain vs Kunci Jawaban -->
+            <div id="feedback-answer-info" class="inline-block px-4 py-1.5 rounded-xl bg-slate-800 text-slate-200 font-bold text-sm sm:text-base mb-4">
+                Jawabanmu: BENAR • Kunci: BENAR
+            </div>
+
+            <!-- Penjelasan Edukatif -->
+            <div class="bg-slate-800/90 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-6">
+                <div class="text-xs font-bold uppercase tracking-wider text-indigo-300 mb-1">💡 Pembahasan Materi:</div>
+                <p id="feedback-explanation" class="text-base sm:text-xl text-white font-medium leading-relaxed">
+                    Penjelasan materi akan muncul di sini.
+                </p>
+            </div>
+
+            <!-- Progress bar otomatis lanjut & Tombol Lanjut -->
+            <div class="flex flex-col items-center gap-3">
+                <button type="button" onclick="nextQuestionImmediate()" class="px-8 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-display text-lg sm:text-xl font-bold shadow-lg transition cursor-pointer">
+                    Soal Berikutnya ➔
+                </button>
+                <span id="feedback-auto-text" class="text-xs sm:text-sm text-slate-400 font-semibold">
+                    Otomatis lanjut dalam 4 detik...
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 4. HALAMAN HASIL AKHIR (SUMMARY SCREEN) ==================== -->
+    <section id="screen-summary" class="hidden relative z-40 min-h-screen w-full bg-slate-950/90 backdrop-blur-lg flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div class="max-w-4xl w-full bg-slate-900 border-2 border-indigo-500/40 rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl my-6">
+            <div class="text-center">
+                <span class="px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-bold text-xs sm:text-sm uppercase tracking-wider">
+                    🏆 Kuis Selesai!
+                </span>
+                <h2 class="font-display text-3xl sm:text-5xl font-bold text-white mt-3 mb-2">
+                    Hasil Kuis Seni Patung
+                </h2>
+
+                <!-- Bintang Apresiasi -->
+                <div id="summary-stars" class="flex items-center justify-center gap-2 text-4xl sm:text-6xl my-4">
+                    ⭐⭐⭐
+                </div>
+
+                <!-- Skor Besar -->
+                <div class="inline-flex flex-col items-center bg-slate-800/90 border-2 border-indigo-400/40 px-8 py-4 rounded-3xl mb-4">
+                    <span class="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-widest">Total Skor Akhir</span>
+                    <span id="summary-score" class="font-display text-5xl sm:text-7xl font-bold text-amber-400">100</span>
+                    <span id="summary-stats" class="text-sm sm:text-base font-bold text-emerald-300 mt-1">10 Benar • 0 Salah</span>
+                </div>
+
+                <p id="summary-message" class="text-slate-300 text-base sm:text-lg max-w-xl mx-auto mb-6 font-medium">
+                    Luar biasa! Pemahamanmu tentang karya seni patung sangat hebat!
+                </p>
+            </div>
+
+            <!-- Ringkasan Review 10 Soal -->
+            <div class="mb-6">
+                <h3 class="font-display text-lg sm:text-xl font-bold text-indigo-300 mb-3">📋 Ringkasan 10 Soal yang Dimainkan:</h3>
+                <div id="summary-review-list" class="max-h-64 overflow-y-auto space-y-2.5 pr-2">
+                    <!-- Item review di-generate oleh JS -->
+                </div>
+            </div>
+
+            <!-- Tombol Main Lagi & Menu -->
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button type="button" onclick="restartGameWithNewShuffle()" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-white font-display text-xl sm:text-2xl font-bold shadow-xl transition cursor-pointer">
+                    🔄 Main Lagi (Acak 10 Soal Baru)
+                </button>
+                <button type="button" onclick="backToLanding()" class="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 font-bold text-base transition cursor-pointer">
+                    🏠 Kembali ke Beranda
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== MODAL NOTIFIKASI KUSTOM (PENGGANTI ALERT/CONFIRM) ==================== -->
+    <div id="custom-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-slate-900 border-2 border-slate-700 rounded-3xl p-6 text-center shadow-2xl">
+            <h3 id="modal-title" class="font-display text-2xl font-bold text-white mb-2">Informasi</h3>
+            <p id="modal-body" class="text-slate-300 text-sm sm:text-base mb-6">Pesan notifikasi.</p>
+            <div id="modal-actions" class="flex items-center justify-center gap-3">
+                <button type="button" onclick="closeCustomModal()" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition cursor-pointer">Mengerti</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas Konfeti untuk Selebrasi -->
+    <canvas id="confetti-canvas" class="fixed inset-0 z-50 pointer-events-none"></canvas>
+
+    <script>
+        /**
+         * ============================================================================
+         * 1. BANK SOAL LENGKAP (20 SOAL BENAR/SALAH MATERI SENI PATUNG KELAS 9 SMP)
+         * ============================================================================
+         */
+        const QUESTION_BANK = [
+            {
+                id: 1,
+                category: "Fungsi Seni Patung",
+                statement: "Patung Monumen dibuat dengan tujuan utama untuk memperingati peristiwa sejarah atau jasa seorang pahlawan.",
+                answer: "BENAR",
+                explanation: "Patung monumen berfungsi untuk mengenang jasa pahlawan atau memperingati peristiwa bersejarah suatu bangsa."
+            },
+            {
+                id: 2,
+                category: "Fungsi Seni Patung",
+                statement: "Patung Religi berfungsi untuk melengkapi keindahan interior atau eksterior ruangan.",
+                answer: "SALAH",
+                explanation: "Patung religi dibuat sebagai sarana ibadah dan memiliki makna religius/keagamaan, bukan sekadar penghias ruangan."
+            },
+            {
+                id: 3,
+                category: "Fungsi Seni Patung",
+                statement: "Patung Arsitektur berfungsi untuk menunjang konstruksi dan keindahan bangunan.",
+                answer: "BENAR",
+                explanation: "Patung arsitektur bernilai estetika sekaligus menyatu dan menunjang konstruksi sebuah bangunan."
+            },
+            {
+                id: 4,
+                category: "Fungsi Seni Patung",
+                statement: "Patung Dekorasi dibuat khusus untuk media pembelajaran di sekolah.",
+                answer: "SALAH",
+                explanation: "Patung dekorasi berfungsi untuk memperindah bangunan, taman, atau lingkungan sekitar."
+            },
+            {
+                id: 5,
+                category: "Corak / Jenis Patung",
+                statement: "Patung Figuratif/Realis adalah patung yang bentuknya meniru alam (seperti manusia, hewan, dan tumbuhan).",
+                answer: "BENAR",
+                explanation: "Corak figuratif/realis merupakan tiruan dari bentuk-bentuk alamiah yang nyata di sekitar kita."
+            },
+            {
+                id: 6,
+                category: "Corak / Jenis Patung",
+                statement: "Patung Non-figuratif/Abstrak adalah patung yang bentuknya menyerupai bentuk alami secara persis.",
+                answer: "SALAH",
+                explanation: "Patung non-figuratif/abstrak bentuknya terlepas dari tiruan alam dan menampilkan garis, lengkungan, atau bentuk abstrak."
+            },
+            {
+                id: 7,
+                category: "Teknik Seni Patung",
+                statement: "Teknik Pahat digunakan pada bahan lunak seperti tanah liat dan lilin.",
+                answer: "SALAH",
+                explanation: "Teknik pahat digunakan untuk mengurangi bahan keras seperti batu, kayu keras, dan marmer."
+            },
+            {
+                id: 8,
+                category: "Teknik Seni Patung",
+                statement: "Teknik Butsir adalah teknik membuat patung dengan mengurangi dan menambah bahan lunak menggunakan alat butsir.",
+                answer: "BENAR",
+                explanation: "Teknik butsir membentuk bahan lunak (tanah liat atau plastisin) dengan cara menambah dan mengurangi bahan."
+            },
+            {
+                id: 9,
+                category: "Teknik Seni Patung",
+                statement: "Teknik Cor (Cetak) dilakukan dengan mencairkan bahan (seperti semen, gips, atau logam) lalu dituangkan ke dalam cetakan.",
+                answer: "BENAR",
+                explanation: "Teknik cor menggunakan cetakan yang diisi adonan cair seperti semen, gips, resin, atau logam cair."
+            },
+            {
+                id: 10,
+                category: "Bahan Seni Patung",
+                statement: "Bahan lunak untuk membuat patung antara lain adalah kayu jati, batu granit, dan besi.",
+                answer: "SALAH",
+                explanation: "Kayu jati, granit, dan besi adalah bahan keras. Contoh bahan lunak adalah tanah liat, plastisin, dan sabun batang."
+            },
+            {
+                id: 11,
+                category: "Bahan Seni Patung",
+                statement: "Sabun batang dan plastisin termasuk contoh bahan sedang dalam pembuatan patung.",
+                answer: "SALAH",
+                explanation: "Sabun batang dan plastisin tergolong bahan lunak karena sangat mudah dibentuk dengan tangan atau alat sederhana."
+            },
+            {
+                id: 12,
+                category: "Bahan Seni Patung",
+                statement: "Kayu waru, kayu randu, dan kayu sengon termasuk contoh bahan sedang.",
+                answer: "BENAR",
+                explanation: "Bahan sedang tidak terlalu lunak dan tidak terlalu keras, contohnya kayu waru, sengon, randu, dan mahoni muda."
+            },
+            {
+                id: 13,
+                category: "Bahan Seni Patung",
+                statement: "Kayu jati, kayu mahoni, dan kayu sonokeling merupakan bahan keras untuk membuat patung.",
+                answer: "BENAR",
+                explanation: "Kayu jati, sonokeling, ulin, serta berbagai jenis batu termasuk kelompok bahan keras."
+            },
+            {
+                id: 14,
+                category: "Bentuk Seni Patung",
+                statement: "Patung Free Standing adalah patung yang berdiri sendiri tanpa menempel pada dinding/latar belakang.",
+                answer: "BENAR",
+                explanation: "Free standing sculpture berdiri tegak mandiri dan dapat dinikmati keindahannya dari segala sisi."
+            },
+            {
+                id: 15,
+                category: "Bentuk Seni Patung",
+                statement: "Relief adalah patung 3 dimensi yang dapat dilihat dari segala arah 360 derajat secara bebas.",
+                answer: "SALAH",
+                explanation: "Relief adalah karya seni pahat yang menempel pada permukaan bidang datar/dinding sehingga hanya dinikmati dari depan."
+            },
+            {
+                id: 16,
+                category: "Alat Seni Patung",
+                statement: "Alat bernama 'Palu dan Pahat' umum digunakan pada pembuatan patung dengan bahan batu atau kayu keras.",
+                answer: "BENAR",
+                explanation: "Palu dan pahat adalah pasangan alat utama dalam teknik memahat bahan keras seperti kayu dan batu."
+            },
+            {
+                id: 17,
+                category: "Fungsi Seni Patung",
+                statement: "Fungsi personal patung adalah patung yang diciptakan untuk memenuhi kebutuhan estetika/ungkapan perasaan pribadi penciptanya.",
+                answer: "BENAR",
+                explanation: "Patung fungsi personal dibuat murni sebagai ekspresi batin dan kepuasan estetis seniman."
+            },
+            {
+                id: 18,
+                category: "Fungsi Seni Patung",
+                statement: "Fungsi sosial patung adalah patung yang hanya dinikmati oleh pembuatnya sendiri tanpa melibatkan orang lain.",
+                answer: "SALAH",
+                explanation: "Fungsi sosial diciptakan untuk kepentingan masyarakat luas, seperti monumen peringatan pahlawan."
+            },
+            {
+                id: 19,
+                category: "Bahan & Teknik Patung",
+                statement: "Semen dan gips termasuk bahan cor/cetak yang sering dipakai dalam seni patung.",
+                answer: "BENAR",
+                explanation: "Adonan semen, pasir, dan gips sangat umum digunakan dalam pembuatan patung menggunakan teknik cor/cetak."
+            },
+            {
+                id: 20,
+                category: "Teknik Seni Patung",
+                statement: "Teknik Assembling/Merakit dilakukan dengan cara memotong dan membuang bagian batu menggunakan pisau khusus.",
+                answer: "SALAH",
+                explanation: "Teknik assembling dilakukan dengan merangkai atau menyambungkan berbagai potongan bahan menjadi satu kesatuan karya."
+            }
+        ];
+
+        /**
+         * ============================================================================
+         * 2. STATE APLIKASI & VARIABEL GLOBAL
+         * ============================================================================
+         */
+        let gameState = {
+            isPlaying: false,
+            useCamera: false,
+            cameraReady: false,
+            questionDuration: 7, // default 7 detik
+            timeLeft: 7,
+            timerInterval: null,
+            feedbackTimeout: null,
+            activeQuestions: [], // 10 soal acak
+            currentIndex: 0,
+            score: 0,
+            history: [],
+            currentZone: "TENGAH", // "KIRI" (SALAH), "TENGAH" (NETRAL), "KANAN" (BENAR)
+            detectedScreenX: 0.5 // 0.0 (kiri layar) -> 1.0 (kanan layar)
+        };
+
+        let poseDetector = null;
+        let cameraInstance = null;
+
+        /**
+         * ============================================================================
+         * 3. SISTEM AUDIO WEB API (EFEK SUARA TANPA FILE EKSTERNAL)
+         * ============================================================================
+         */
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playTone(freq, type, duration, delay = 0, gainVal = 0.2) {
+                try {
+                    this.init();
+                    if (!this.ctx) return;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + delay);
+                    osc.stop(this.ctx.currentTime + delay + duration);
+                } catch (e) {
+                    // Abaikan error audio jika browser memblokir autoplay
+                }
+            },
+            playTick(urgent = false) {
+                this.playTone(urgent ? 880 : 520, 'sine', 0.12, 0, 0.15);
+            },
+            playZoneSwitch() {
+                this.playTone(440, 'triangle', 0.08, 0, 0.08);
+            },
+            playCorrect() {
+                this.playTone(523.25, 'triangle', 0.2, 0, 0.25);     // C5
+                this.playTone(659.25, 'triangle', 0.2, 0.12, 0.25);  // E5
+                this.playTone(783.99, 'triangle', 0.35, 0.24, 0.25); // G5
+                this.playTone(1046.50, 'triangle', 0.5, 0.36, 0.3);  // C6
+            },
+            playWrong() {
+                this.playTone(300, 'sawtooth', 0.25, 0, 0.2);
+                this.playTone(220, 'sawtooth', 0.45, 0.2, 0.2);
+            },
+            playVictory() {
+                const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
+                notes.forEach((n, idx) => {
+                    this.playTone(n, 'triangle', 0.28, idx * 0.14, 0.25);
+                });
+            }
+        };
+
+        /**
+         * ============================================================================
+         * 4. INISIALISASI KAMERA & MEDIAPIPE POSE DETECTION
+         * ============================================================================
+         */
+        async function initCameraAndPose() {
+            const statusText = document.getElementById('camera-status-text');
+            const statusDot = document.getElementById('camera-dot');
+            const btnEnable = document.getElementById('btn-enable-camera');
+            const videoEl = document.getElementById('webcam-video');
+            const fallbackBg = document.getElementById('camera-fallback-bg');
+
+            try {
+                statusText.textContent = "Meminta izin kamera...";
+                statusDot.className = "w-3 h-3 rounded-full bg-amber-400 animate-ping";
+                btnEnable.disabled = true;
+                btnEnable.classList.add('opacity-50');
+
+                // Cek dukungan navigator.mediaDevices
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Browser tidak mendukung akses webcam.");
+                }
+
+                // Cek apakah MediaPipe Pose tersedia
+                if (typeof Pose === 'undefined') {
+                    throw new Error("Library MediaPipe Pose gagal dimuat. Periksa koneksi internet.");
+                }
+
+                // Inisialisasi MediaPipe Pose
+                poseDetector = new Pose({
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+                });
+
+                poseDetector.setOptions({
+                    modelComplexity: 1,
+                    smoothLandmarks: true,
+                    enableSegmentation: false,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                poseDetector.onResults(onPoseResults);
+
+                // Inisialisasi Camera Utils atau fallback manual stream
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+                    audio: false
+                });
+                videoEl.srcObject = stream;
+                await videoEl.play();
+
+                fallbackBg.classList.add('hidden');
+                gameState.cameraReady = true;
+                gameState.useCamera = true;
+
+                statusText.textContent = "Kamera & Sensor Gestur Aktif!";
+                statusDot.className = "w-3 h-3 rounded-full bg-emerald-400";
+                btnEnable.textContent = "✅ Kamera Siap";
+
+                // Loop deteksi frame
+                const processVideoFrame = async () => {
+                    if (videoEl.readyState >= 2 && poseDetector) {
+                        try {
+                            await poseDetector.send({ image: videoEl });
+                        } catch (err) {
+                            // Abaikan frame error sesekali
+                        }
+                    }
+                    requestAnimationFrame(processVideoFrame);
+                };
+                requestAnimationFrame(processVideoFrame);
+
+            } catch (error) {
+                console.warn("Kamera tidak dapat diakses:", error);
+                gameState.cameraReady = false;
+                statusText.textContent = "Kamera tidak tersedia (Gunakan Mode Klik)";
+                statusDot.className = "w-3 h-3 rounded-full bg-red-500";
+                btnEnable.disabled = false;
+                btnEnable.classList.remove('opacity-50');
+                btnEnable.textContent = "🔄 Coba Lagi";
+
+                showCustomModal(
+                    "Kamera Tidak Terdeteksi",
+                    "Webcam tidak ditemukan atau izin kamera diblokir oleh browser/perangkat. Anda tetap bisa memainkan game ini dengan lancar menggunakan tombol 'Mode Tanpa Kamera (Klik)'!"
+                );
+            }
+        }
+
+        /**
+         * Callback setiap kali MediaPipe mendeteksi titik tubuh (landmarks)
+         */
+        function onPoseResults(results) {
+            const canvas = document.getElementById('pose-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Sesuaikan ukuran canvas dengan layar
+            if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!results.poseLandmarks || results.poseLandmarks.length === 0) {
+                return;
+            }
+
+            const lm = results.poseLandmarks;
+            // Titik utama: Hidung (0), Bahu Kiri (11), Bahu Kanan (12), Pinggul Kiri (23), Pinggul Kanan (24)
+            const nose = lm[0];
+            const leftShoulder = lm[11];
+            const rightShoulder = lm[12];
+            const leftHip = lm[23];
+            const rightHip = lm[24];
+
+            // Hitung titik tengah tubuh (horizontal raw x dari video sebelum di-mirror)
+            let rawCenterX = nose.x;
+            let rawCenterY = nose.y;
+
+            if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.4 && rightShoulder.visibility > 0.4) {
+                rawCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+                rawCenterY = (leftShoulder.y + rightShoulder.y) / 2;
+            }
+
+            // Gambar visual kerangka tubuh sederhana & titik pusat di canvas (canvas sudah di-mirror via CSS)
+            drawSkeletonOverlay(ctx, lm, canvas.width, canvas.height);
+
+            // Karena tampilan video & canvas di-mirror (scaleX(-1)),
+            // maka posisi di layar user adalah: screenX = 1 - rawCenterX
+            const screenX = Math.max(0.05, Math.min(0.95, 1 - rawCenterX));
+            gameState.detectedScreenX = screenX;
+
+            // Update posisi marker indikator pemain
+            updatePlayerTrackerUI(screenX);
+
+            // Tentukan zona berdasarkan koordinat horizontal layar
+            if (gameState.isPlaying) {
+                if (screenX < 0.38) {
+                    setActiveZone("SALAH");
+                } else if (screenX > 0.62) {
+                    setActiveZone("BENAR");
+                } else {
+                    setActiveZone("TENGAH");
+                }
+            }
+        }
+
+        /**
+         * Menggambar visual titik tubuh & garis bahu agar siswa melihat tracking real-time
+         */
+        function drawSkeletonOverlay(ctx, lm, w, h) {
+            const connections = [
+                [11, 12], // Bahu
+                [11, 23], // Sisi kiri badan
+                [12, 24], // Sisi kanan badan
+                [23, 24], // Pinggul
+                [11, 13], [13, 15], // Lengan kiri
+                [12, 14], [14, 16]  // Lengan kanan
+            ];
+
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+
+            connections.forEach(([i, j]) => {
+                if (lm[i] && lm[j] && lm[i].visibility > 0.4 && lm[j].visibility > 0.4) {
+                    ctx.beginPath();
+                    ctx.moveTo(lm[i].x * w, lm[i].y * h);
+                    ctx.lineTo(lm[j].x * w, lm[j].y * h);
+                    ctx.stroke();
+                }
+            });
+
+            // Titik sendi utama
+            [0, 11, 12, 15, 16, 23, 24].forEach(idx => {
+                if (lm[idx] && lm[idx].visibility > 0.4) {
+                    ctx.beginPath();
+                    ctx.arc(lm[idx].x * w, lm[idx].y * h, idx === 0 ? 12 : 8, 0, 2 * Math.PI);
+                    ctx.fillStyle = idx === 0 ? '#facc15' : '#ffffff';
+                    ctx.fill();
+                    ctx.lineWidth = 3;
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.stroke();
+                }
+            });
+        }
+
+        /**
+         * Memperbarui gelembung indikator posisi pemain di layar
+         */
+        function updatePlayerTrackerUI(screenX) {
+            const pill = document.getElementById('player-tracker-pill');
+            const bubble = document.getElementById('tracker-bubble');
+
+            if (!gameState.isPlaying) {
+                pill.classList.add('hidden');
+                return;
+            }
+
+            pill.classList.remove('hidden');
+            pill.style.left = `${(screenX * 100).toFixed(1)}%`;
+
+            if (screenX < 0.38) {
+                bubble.textContent = "👈 POSISI: KIRI (SALAH)";
+                bubble.className = "px-4 py-1.5 rounded-full bg-red-500 text-white font-extrabold text-xs sm:text-sm shadow-lg border-2 border-white whitespace-nowrap";
+            } else if (screenX > 0.62) {
+                bubble.textContent = "POSISI: KANAN (BENAR) 👉";
+                bubble.className = "px-4 py-1.5 rounded-full bg-emerald-500 text-white font-extrabold text-xs sm:text-sm shadow-lg border-2 border-white whitespace-nowrap";
+            } else {
+                bubble.textContent = "🧍 POSISI: TENGAH (SIAP-SIAP)";
+                bubble.className = "px-4 py-1.5 rounded-full bg-amber-400 text-slate-950 font-extrabold text-xs sm:text-sm shadow-lg border-2 border-white whitespace-nowrap";
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 5. LOGIKA ZONA & KONTROL PERMAINAN
+         * ============================================================================
+         */
+        function setActiveZone(zone) {
+            if (gameState.currentZone !== zone) {
+                gameState.currentZone = zone;
+                if (gameState.isPlaying) AudioEngine.playZoneSwitch();
+            }
+
+            const zLeft = document.getElementById('zone-left');
+            const zCenter = document.getElementById('zone-center');
+            const zRight = document.getElementById('zone-right');
+            const badgeLeft = document.getElementById('badge-left');
+            const badgeRight = document.getElementById('badge-right');
+            const liveIndicator = document.getElementById('live-choice-indicator');
+
+            // Reset classes
+            zLeft.classList.remove('zone-active-left');
+            zCenter.classList.remove('zone-active-center');
+            zRight.classList.remove('zone-active-right');
+            badgeLeft.classList.remove('scale-110');
+            badgeRight.classList.remove('scale-110');
+
+            if (zone === "SALAH") {
+                zLeft.classList.add('zone-active-left');
+                badgeLeft.classList.add('scale-110');
+                liveIndicator.textContent = "❌ Pilihan Terdeteksi: SALAH (Tetap di Kiri sampai waktu habis!)";
+                liveIndicator.className = "px-5 py-2 rounded-full bg-red-600/80 border-2 border-red-300 text-white text-sm sm:text-base font-extrabold shadow-lg";
+            } else if (zone === "BENAR") {
+                zRight.classList.add('zone-active-right');
+                badgeRight.classList.add('scale-110');
+                liveIndicator.textContent = "✅ Pilihan Terdeteksi: BENAR (Tetap di Kanan sampai waktu habis!)";
+                liveIndicator.className = "px-5 py-2 rounded-full bg-emerald-600/80 border-2 border-emerald-300 text-white text-sm sm:text-base font-extrabold shadow-lg";
+            } else {
+                zCenter.classList.add('zone-active-center');
+                liveIndicator.textContent = "⏳ Posisi Netral — Geser ke KANAN (Benar) atau KIRI (Salah)";
+                liveIndicator.className = "px-5 py-2 rounded-full bg-amber-500/25 border border-amber-400/60 text-amber-200 text-sm sm:text-base font-bold";
+            }
+        }
+
+        /**
+         * Handler untuk mode klik manual / touch screen (jika tanpa kamera atau klik langsung di papan interaktif)
+         */
+        function handleManualZoneSelect(choice) {
+            if (!gameState.isPlaying) return;
+            setActiveZone(choice);
+            // Jika menggunakan mode tanpa kamera, langsung kunci jawaban agar responsif saat diklik
+            if (!gameState.useCamera) {
+                clearInterval(gameState.timerInterval);
+                lockAnswerAndEvaluate();
+            }
+        }
+
+        /**
+         * Pengaturan durasi timer per soal (5, 7, 10 detik)
+         */
+        function setQuestionDuration(seconds) {
+            gameState.questionDuration = seconds;
+            document.querySelectorAll('.dur-btn').forEach(btn => {
+                btn.className = "dur-btn px-3.5 py-1.5 rounded-lg text-sm font-bold transition text-slate-400 hover:text-white cursor-pointer";
+            });
+            const activeBtn = document.getElementById(`dur-${seconds}`);
+            if (activeBtn) {
+                activeBtn.className = "dur-btn px-3.5 py-1.5 rounded-lg text-sm font-bold transition bg-indigo-600 text-white shadow cursor-pointer";
+            }
+        }
+
+        /**
+         * Algoritma Fisher-Yates Shuffle untuk mengacak soal secara adil & mengambil 10 soal
+         */
+        function pickRandom10Questions() {
+            const copy = [...QUESTION_BANK];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy.slice(0, 10);
+        }
+
+        /**
+         * Memulai sesi game baru
+         */
+        async function startGame(withCamera) {
+            AudioEngine.init();
+
+            if (withCamera && !gameState.cameraReady) {
+                await initCameraAndPose();
+                // Jika user menolak/gagal kamera, tetap tawarkan jalan atau otomatis fallback
+                if (!gameState.cameraReady) {
+                    return;
+                }
+            }
+
+            gameState.useCamera = withCamera && gameState.cameraReady;
+            gameState.activeQuestions = pickRandom10Questions();
+            gameState.currentIndex = 0;
+            gameState.score = 0;
+            gameState.history = [];
+            gameState.isPlaying = true;
+
+            // Tampilkan layar gameplay & zona overlay
+            document.getElementById('screen-landing').classList.add('hidden');
+            document.getElementById('screen-summary').classList.add('hidden');
+            document.getElementById('screen-feedback').classList.add('hidden');
+            document.getElementById('screen-gameplay').classList.remove('hidden');
+
+            const zones = document.getElementById('gesture-zones');
+            zones.classList.remove('opacity-0');
+            zones.classList.add('opacity-100');
+
+            loadCurrentQuestion();
+        }
+
+        /**
+         * Memuat soal berdasarkan currentIndex dan menjalankan countdown
+         */
+        function loadCurrentQuestion() {
+            const q = gameState.activeQuestions[gameState.currentIndex];
+            gameState.isPlaying = true;
+            gameState.timeLeft = gameState.questionDuration;
+            setActiveZone("TENGAH");
+
+            // Update HUD
+            document.getElementById('hud-progress').textContent = `Soal ${gameState.currentIndex + 1} / 10`;
+            document.getElementById('hud-score').textContent = gameState.score;
+            document.getElementById('question-category').textContent = `Topik: ${q.category}`;
+            document.getElementById('question-text').textContent = `"${q.statement}"`;
+
+            updateTimerDisplay();
+
+            clearInterval(gameState.timerInterval);
+            gameState.timerInterval = setInterval(() => {
+                gameState.timeLeft--;
+                updateTimerDisplay();
+
+                if (gameState.timeLeft > 0) {
+                    AudioEngine.playTick(gameState.timeLeft <= 3);
+                } else {
+                    clearInterval(gameState.timerInterval);
+                    lockAnswerAndEvaluate();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const timerEl = document.getElementById('hud-timer');
+            const timerBox = document.getElementById('timer-box');
+            timerEl.textContent = gameState.timeLeft;
+
+            if (gameState.timeLeft <= 3) {
+                timerBox.classList.remove('border-amber-400');
+                timerBox.classList.add('border-red-500', 'animate-pulse-fast');
+                timerEl.classList.add('text-red-400');
+            } else {
+                timerBox.classList.add('border-amber-400');
+                timerBox.classList.remove('border-red-500', 'animate-pulse-fast');
+                timerEl.classList.remove('text-red-400');
+            }
+        }
+
+        /**
+         * Mengunci posisi terakhir saat timer habis dan mengevaluasi jawaban
+         */
+        function lockAnswerAndEvaluate() {
+            gameState.isPlaying = false;
+            document.getElementById('player-tracker-pill').classList.add('hidden');
+
+            const q = gameState.activeQuestions[gameState.currentIndex];
+            const userChoice = gameState.currentZone; // "BENAR", "SALAH", atau "TENGAH" (tidak memilih)
+            const isCorrect = (userChoice === q.answer);
+
+            if (isCorrect) {
+                gameState.score += 10;
+                AudioEngine.playCorrect();
+                launchConfetti(45);
+            } else {
+                AudioEngine.playWrong();
+            }
+
+            // Simpan riwayat untuk ringkasan akhir
+            gameState.history.push({
+                question: q,
+                userChoice: userChoice === "TENGAH" ? "TIDAK MEMILIH (TENGAH)" : userChoice,
+                isCorrect: isCorrect
+            });
+
+            document.getElementById('hud-score').textContent = gameState.score;
+            showFeedbackOverlay(q, userChoice, isCorrect);
+        }
+
+        /**
+         * Menampilkan modal feedback & pembahasan antar soal
+         */
+        function showFeedbackOverlay(q, userChoice, isCorrect) {
+            const overlay = document.getElementById('screen-feedback');
+            const card = document.getElementById('feedback-card');
+            const icon = document.getElementById('feedback-icon');
+            const title = document.getElementById('feedback-title');
+            const ansInfo = document.getElementById('feedback-answer-info');
+            const expText = document.getElementById('feedback-explanation');
+
+            overlay.classList.remove('hidden');
+
+            if (isCorrect) {
+                card.className = "max-w-2xl w-full bg-slate-900 border-4 border-emerald-500 rounded-3xl p-6 sm:p-8 text-center shadow-2xl";
+                icon.className = "w-20 h-20 sm:w-24 sm:h-24 rounded-full mx-auto mb-4 flex items-center justify-center text-4xl sm:text-5xl font-bold bg-emerald-500 text-white shadow-xl";
+                icon.textContent = "✓";
+                title.textContent = "JAWABAN BENAR! (+10)";
+                title.className = "font-display text-3xl sm:text-5xl font-bold mb-2 text-emerald-400";
+            } else {
+                card.className = "max-w-2xl w-full bg-slate-900 border-4 border-red-500 rounded-3xl p-6 sm:p-8 text-center shadow-2xl";
+                icon.className = "w-20 h-20 sm:w-24 sm:h-24 rounded-full mx-auto mb-4 flex items-center justify-center text-4xl sm:text-5xl font-bold bg-red-500 text-white shadow-xl";
+                icon.textContent = "✕";
+                title.textContent = userChoice === "TENGAH" ? "WAKTU HABIS!" : "KURANG TEPAT!";
+                title.className = "font-display text-3xl sm:text-5xl font-bold mb-2 text-red-400";
+            }
+
+            const displayUser = userChoice === "TENGAH" ? "Diam di Tengah" : userChoice;
+            ansInfo.innerHTML = `Pilihanmu: <span class="underline">${displayUser}</span> &nbsp;•&nbsp; Kunci Jawaban: <span class="text-amber-300 font-extrabold">${q.answer}</span>`;
+            expText.textContent = q.explanation;
+
+            // Otomatis lanjut setelah 4 detik
+            let autoSec = 4;
+            const autoText = document.getElementById('feedback-auto-text');
+            autoText.textContent = `Otomatis lanjut dalam ${autoSec} detik...`;
+
+            clearInterval(gameState.feedbackTimeout);
+            gameState.feedbackTimeout = setInterval(() => {
+                autoSec--;
+                if (autoSec > 0) {
+                    autoText.textContent = `Otomatis lanjut dalam ${autoSec} detik...`;
+                } else {
+                    nextQuestionImmediate();
+                }
+            }, 1000);
+        }
+
+        function nextQuestionImmediate() {
+            clearInterval(gameState.feedbackTimeout);
+            document.getElementById('screen-feedback').classList.add('hidden');
+
+            gameState.currentIndex++;
+            if (gameState.currentIndex < gameState.activeQuestions.length) {
+                loadCurrentQuestion();
+            } else {
+                showFinalSummary();
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 6. LAYAR HASIL AKHIR & REVIEW
+         * ============================================================================
+         */
+        function showFinalSummary() {
+            gameState.isPlaying = false;
+            document.getElementById('screen-gameplay').classList.add('hidden');
+            document.getElementById('gesture-zones').classList.add('opacity-0');
+            document.getElementById('gesture-zones').classList.remove('opacity-100');
+            document.getElementById('screen-summary').classList.remove('hidden');
+
+            const correctCount = gameState.history.filter(h => h.isCorrect).length;
+            const wrongCount = 10 - correctCount;
+
+            document.getElementById('summary-score').textContent = gameState.score;
+            document.getElementById('summary-stats').textContent = `${correctCount} Benar • ${wrongCount} Salah (dari 10 Soal)`;
+
+            const starsEl = document.getElementById('summary-stars');
+            const msgEl = document.getElementById('summary-message');
+
+            if (gameState.score >= 80) {
+                starsEl.textContent = "⭐⭐⭐";
+                msgEl.textContent = "Luar biasa! Kamu menguasai materi Jenis, Fungsi, Bahan, dan Teknik Seni Patung Kelas 9 dengan sangat baik!";
+                AudioEngine.playVictory();
+                launchConfetti(100);
+            } else if (gameState.score >= 50) {
+                starsEl.textContent = "⭐⭐";
+                msgEl.textContent = "Bagus sekali! Terus berlatih agar semakin paham seluruh materi karya seni patung!";
+                AudioEngine.playVictory();
+            } else {
+                starsEl.textContent = "⭐";
+                msgEl.textContent = "Tetap semangat! Yuk baca kembali pembahasan di bawah dan coba main lagi!";
+            }
+
+            // Render list review 10 soal
+            const reviewList = document.getElementById('summary-review-list');
+            reviewList.innerHTML = "";
+
+            gameState.history.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = `p-3.5 rounded-2xl border ${item.isCorrect ? 'bg-emerald-950/40 border-emerald-500/40' : 'bg-red-950/40 border-red-500/40'} flex flex-col sm:flex-row sm:items-center justify-between gap-2`;
+                div.innerHTML = `
+                    <div class="text-left">
+                        <span class="text-xs font-bold ${item.isCorrect ? 'text-emerald-400' : 'text-red-400'}">
+                            #${idx + 1} • ${item.isCorrect ? '✓ BENAR' : '✕ SALAH'} (Kunci: ${item.question.answer})
+                        </span>
+                        <p class="text-sm text-white font-semibold mt-0.5">${item.question.statement}</p>
+                        <p class="text-xs text-slate-300 mt-1 italic">${item.question.explanation}</p>
+                    </div>
+                `;
+                reviewList.appendChild(div);
+            });
+        }
+
+        function restartGameWithNewShuffle() {
+            startGame(gameState.useCamera);
+        }
+
+        function backToLanding() {
+            clearInterval(gameState.timerInterval);
+            clearInterval(gameState.feedbackTimeout);
+            gameState.isPlaying = false;
+
+            document.getElementById('screen-gameplay').classList.add('hidden');
+            document.getElementById('screen-feedback').classList.add('hidden');
+            document.getElementById('screen-summary').classList.add('hidden');
+            document.getElementById('player-tracker-pill').classList.add('hidden');
+            document.getElementById('gesture-zones').classList.add('opacity-0');
+            document.getElementById('gesture-zones').classList.remove('opacity-100');
+            document.getElementById('screen-landing').classList.remove('hidden');
+        }
+
+        function confirmExitToMenu() {
+            showCustomModal(
+                "Kembali ke Beranda?",
+                "Progres kuis saat ini akan dihentikan jika Anda kembali ke halaman utama.",
+                true
+            );
+        }
+
+        /**
+         * ============================================================================
+         * 7. MODAL NOTIFIKASI & EFEK KONFETI
+         * ============================================================================
+         */
+        function showCustomModal(title, body, isConfirmExit = false) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').textContent = body;
+            const actions = document.getElementById('modal-actions');
+
+            if (isConfirmExit) {
+                actions.innerHTML = `
+                    <button type="button" onclick="closeCustomModal()" class="px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold transition cursor-pointer">Lanjut Main</button>
+                    <button type="button" onclick="closeCustomModal(); backToLanding();" class="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold transition cursor-pointer">Ya, Keluar</button>
+                `;
+            } else {
+                actions.innerHTML = `
+                    <button type="button" onclick="closeCustomModal()" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition cursor-pointer">Mengerti</button>
+                `;
+            }
+            document.getElementById('custom-modal').classList.remove('hidden');
+        }
+
+        function closeCustomModal() {
+            document.getElementById('custom-modal').classList.add('hidden');
+        }
+
+        /**
+         * Efek Konfeti Ringan di Canvas
+         */
+        function launchConfetti(count = 50) {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const colors = ['#34d399', '#fbbf24', '#60a5fa', '#f472b6', '#a78bfa'];
+            const particles = Array.from({ length: count }, () => ({
+                x: Math.random() * canvas.width,
+                y: -20 - Math.random() * 100,
+                size: 8 + Math.random() * 8,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                vy: 3 + Math.random() * 5,
+                vx: (Math.random() - 0.5) * 4,
+                rot: Math.random() * 360,
+                vRot: (Math.random() - 0.5) * 10
+            }));
+
+            let frame = 0;
+            function animateConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.rot += p.vRot;
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate((p.rot * Math.PI) / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                    ctx.restore();
+                });
+                frame++;
+                if (frame < 130) {
+                    requestAnimationFrame(animateConfetti);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            animateConfetti();
+        }
+    </script>
 </body>
 </html>
