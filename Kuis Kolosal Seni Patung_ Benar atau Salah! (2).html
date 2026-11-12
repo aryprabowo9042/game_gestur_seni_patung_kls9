@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kuis Kolosal Seni Patung: Benar atau Salah!</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+:root{color-scheme:light dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:#1e1b4b;font-family:system-ui,'Segoe UI',sans-serif;overflow:hidden}
+#stage{position:relative;width:100%;height:100%;overflow:hidden;background:linear-gradient(135deg,#312e81,#7c2d12)}
+video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.45}
+.zone{position:absolute;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:6vh;font-weight:900;color:#fff;text-shadow:0 2px 8px #0008;transition:opacity .2s;font-size:clamp(1.4rem,4vw,3.5rem);text-align:center}
+.cnt{font-size:clamp(2.5rem,9vw,8rem);line-height:1;margin-top:.3rem}.person{position:absolute;top:58%;width:44px;height:44px;margin-left:-22px;border-radius:50%;background:#fff;border:4px solid #facc15;font-size:24px;display:flex;align-items:center;justify-content:center;transition:left .15s linear;box-shadow:0 0 14px #facc15}.pop{animation:pop .5s ease}
+@keyframes pop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+.shake{animation:shake .5s}
+@keyframes shake{25%{transform:translateX(-14px)}75%{transform:translateX(14px)}}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;text-align:center;z-index:20}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="stage">
+  <video id="cam" playsinline muted></video>
+  <canvas id="fx" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index:15"></canvas>
+
+  <!-- zona -->
+  <div id="zones" class="hidden">
+    <div id="zL" class="zone" style="left:0;width:40%;background:rgba(239,68,68,.35)">❌ SALAH<br>FALSE<div id="cL" class="cnt">0</div><div class="text-base md:text-2xl">orang</div></div>
+    <div id="zM" class="zone" style="left:40%;width:20%;background:rgba(250,204,21,.25)">SIAP-<br>SIAP<div id="cM" class="cnt">0</div><div class="text-base md:text-2xl">orang</div></div>
+    <div id="zR" class="zone" style="left:60%;width:40%;background:rgba(34,197,94,.35)">✅ BENAR<br>TRUE<div id="cR" class="cnt">0</div><div class="text-base md:text-2xl">orang</div></div>
+    <div id="people"></div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden absolute top-0 left-0 right-0 p-3 md:p-5" style="z-index:10">
+    <div class="flex justify-between items-center text-white font-extrabold text-lg md:text-3xl mb-2">
+      <span id="prog" class="bg-indigo-700/90 rounded-full px-4 py-1">Soal 1 dari 10</span>
+      <span id="timer" class="bg-amber-500 rounded-full px-5 py-1 text-indigo-950">7</span>
+      <span id="score" class="bg-emerald-600/90 rounded-full px-4 py-1">Skor: 0</span>
+    </div>
+    <div id="q" class="bg-white/95 text-indigo-950 rounded-3xl shadow-2xl p-4 md:p-7 font-extrabold text-center leading-snug" style="font-size:clamp(1.15rem,3vw,2.6rem)"></div>
+    <div class="h-3 bg-white/30 rounded-full mt-3 overflow-hidden"><div id="bar" class="h-full bg-amber-400" style="width:100%"></div></div>
+  </div>
+
+  <div id="ctl" class="hidden absolute left-3 bottom-3 flex gap-2" style="z-index:19"><button id="btnAdd" class="bg-indigo-600 text-white rounded-full px-4 py-2 font-bold">➕ Peserta</button><button id="btnDel" class="bg-indigo-600 text-white rounded-full px-4 py-2 font-bold">➖</button></div>
+  <!-- umpan balik -->
+  <div id="fb" class="screen hidden pointer-events-none" style="z-index:18"></div>
+
+  <!-- landing -->
+  <div id="landing" class="screen bg-gradient-to-br from-indigo-900/95 to-orange-900/95 text-white">
+    <div class="text-6xl md:text-8xl mb-2">🗿</div>
+    <h1 class="font-black text-3xl md:text-6xl leading-tight text-amber-300">Kuis Kolosal Seni Patung</h1>
+    <h2 class="font-black text-2xl md:text-5xl mb-4">Benar atau Salah!</h2>
+    <p class="mb-3 text-sm md:text-xl opacity-90">Seni Budaya Kelas 9 • Jenis, Fungsi, Bahan, dan Teknik Seni Patung</p>
+    <div class="grid grid-cols-3 gap-2 md:gap-4 max-w-3xl w-full mb-4 text-sm md:text-xl font-bold">
+      <div class="rounded-2xl p-3 bg-red-500/80">⬅️ Geser KIRI<br>= SALAH</div>
+      <div class="rounded-2xl p-3 bg-yellow-400/90 text-indigo-950">Tengah<br>= Siap-siap</div>
+      <div class="rounded-2xl p-3 bg-green-500/80">Geser KANAN ➡️<br>= BENAR</div>
+    </div>
+    <p class="text-xs md:text-base max-w-2xl mb-4 opacity-90">Mainkan bersama satu kelas! Semua siswa berdiri di depan kamera, dan sistem menghitung berapa orang di sisi BENAR dan SALAH. Kamu punya 10 detik per soal untuk pindah posisi, dan ada hitungan siap-siap 5 detik sebelum soal pertama. Jawaban dikunci sesuai posisi terakhirmu. Tanpa kamera (mode guru)? Klik layar untuk menambah atau menggeser peserta; tombol ➕ ➖ menambah/mengurangi.</p>
+    <div class="flex flex-wrap gap-3 justify-center">
+      <button id="btnCam" class="bg-sky-500 hover:bg-sky-400 rounded-full px-6 py-3 font-extrabold text-lg md:text-2xl shadow-lg">📷 Aktifkan Kamera</button>
+      <button id="btnStart" class="bg-amber-400 hover:bg-amber-300 text-indigo-950 rounded-full px-8 py-3 font-black text-lg md:text-2xl shadow-lg">▶ Mulai Game</button>
+    </div>
+    <p id="camStatus" class="mt-3 text-sm md:text-lg font-semibold text-amber-200">Kamera belum aktif (mode keyboard/sentuh).</p>
+  </div>
+
+  <!-- hasil -->
+  <div id="result" class="screen hidden bg-gradient-to-br from-indigo-900/95 to-fuchsia-900/95 text-white">
+    <div class="text-sm md:text-2xl font-bold opacity-80">Permainan Selesai!</div>
+    <div id="stars" class="text-6xl md:text-8xl my-2"></div>
+    <div id="finalScore" class="font-black text-6xl md:text-8xl text-amber-300"></div><div id="detail" class="text-xl md:text-3xl font-bold mt-1"></div>
+    <div id="msg" class="text-lg md:text-3xl font-bold my-3"></div>
+    <button id="btnAgain" class="bg-amber-400 hover:bg-amber-300 text-indigo-950 rounded-full px-8 py-3 font-black text-xl md:text-3xl shadow-lg">🔄 Main Lagi</button>
+  </div>
+</div>
+
+<script>
+const BANK=[
+["Patung Monumen dibuat dengan tujuan utama untuk memperingati peristiwa sejarah atau jasa seorang pahlawan.",true,"Patung monumen memang untuk memperingati sejarah/pahlawan."],
+["Patung Religi berfungsi untuk melengkapi keindahan interior atau eksterior ruangan.",false,"Patung religi berfungsi sebagai sarana ibadah."],
+["Patung Arsitektur berfungsi untuk menunjang konstruksi dan keindahan bangunan.",true,"Patung arsitektur menunjang konstruksi dan keindahan bangunan."],
+["Patung Dekorasi dibuat khusus untuk media pembelajaran di sekolah.",false,"Patung dekorasi untuk memperindah taman/ruangan."],
+["Patung Figuratif/Realis adalah patung yang bentuknya meniru alam (manusia, hewan, tumbuhan).",true,"Figuratif/realis meniru bentuk alam."],
+["Patung Non-figuratif/Abstrak adalah patung yang bentuknya menyerupai bentuk alami secara persis.",false,"Abstrak terlepas dari bentuk alamiah (garis, bidang, bentuk abstrak)."],
+["Teknik Pahat digunakan pada bahan lunak seperti tanah liat dan lilin.",false,"Pahat dipakai untuk bahan keras seperti batu dan kayu."],
+["Teknik Butsir adalah teknik membuat patung dengan mengurangi dan menambah bahan lunak menggunakan alat butsir.",true,"Butsir: mengurangi dan menambah bahan lunak."],
+["Teknik Cor (Cetak) dilakukan dengan mencairkan bahan (semen, gips, logam) lalu dituangkan ke cetakan.",true,"Cor/cetak: bahan cair dituang ke cetakan."],
+["Bahan lunak untuk membuat patung antara lain kayu jati, batu granit, dan besi.",false,"Bahan lunak: tanah liat, plastisin, sabun batang."],
+["Sabun batang dan plastisin termasuk contoh bahan sedang dalam pembuatan patung.",false,"Sabun batang dan plastisin adalah bahan lunak."],
+["Kayu waru, kayu randu, dan kayu sengon termasuk contoh bahan sedang.",true,"Kayu waru, randu, sengon adalah bahan sedang."],
+["Kayu jati, kayu mahoni, dan kayu sonokeling merupakan bahan keras untuk membuat patung.",true,"Ketiganya termasuk bahan keras."],
+["Patung Free Standing adalah patung yang berdiri sendiri tanpa menempel pada dinding/latar belakang.",true,"Free standing berdiri sendiri."],
+["Relief adalah patung 3 dimensi yang dapat dilihat dari segala arah 360 derajat secara bebas.",false,"Relief menempel pada bidang datar/dinding."],
+["Alat \"Palu dan Pahat\" umum digunakan pada pembuatan patung dengan bahan batu atau kayu keras.",true,"Palu dan pahat cocok untuk bahan keras."],
+["Fungsi personal patung adalah patung yang diciptakan untuk memenuhi kebutuhan estetika/ungkapan perasaan pribadi penciptanya.",true,"Fungsi personal: ekspresi pribadi pencipta."],
+["Fungsi sosial patung adalah patung yang hanya dinikmati oleh pembuatnya sendiri tanpa melibatkan orang lain.",false,"Fungsi sosial untuk kepentingan masyarakat/peringatan bersama."],
+["Semen dan gips termasuk bahan cor/cetak yang sering dipakai dalam seni patung.",true,"Semen dan gips adalah bahan cor/cetak."],
+["Teknik Assembling/Merakit dilakukan dengan cara memotong dan membuang bagian batu menggunakan pisau khusus.",false,"Assembling: merangkai/menyambung berbagai bahan menjadi satu bentuk."]
+];
+const TIME=10;
+const $=id=>document.getElementById(id);
+let qs=[],idx=0,score=0,t=TIME,tick=null,phase='landing',posX=0.5,side='mid',locked=false,answered=false,people=[0.5],sumC=0,sumT=0;
+let stream=null,tracker=null,landmarker=null,mode='manual';
+
+/* ---------- audio ---------- */
+let ac;function beep(f,d,type='sine',v=.2,when=0){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(ac.destination);const s=ac.currentTime+when;o.start(s);g.gain.exponentialRampToValueAtTime(.001,s+d);o.stop(s+d)}catch(e){}}
+const sfxOk=()=>[523,659,784,1047].forEach((f,i)=>beep(f,.25,'triangle',.25,i*.1));
+const sfxBad=()=>[300,220,160].forEach((f,i)=>beep(f,.3,'sawtooth',.15,i*.13));
+const sfxTick=()=>beep(900,.08,'square',.08);
+
+/* ---------- konfeti ---------- */
+const fx=$('fx'),cx=fx.getContext('2d');let parts=[];
+function resize(){fx.width=innerWidth;fx.height=innerHeight}addEventListener('resize',resize);resize();
+function burst(colors,n=140){for(let i=0;i<n;i++)parts.push({x:innerWidth/2,y:innerHeight/2,vx:(Math.random()-.5)*22,vy:(Math.random()-.8)*20,s:6+Math.random()*8,c:colors[i%colors.length],l:90})}
+(function loop(){cx.clearRect(0,0,fx.width,fx.height);parts=parts.filter(p=>p.l>0);for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=.5;p.l--;cx.fillStyle=p.c;cx.globalAlpha=Math.min(1,p.l/30);cx.fillRect(p.x,p.y,p.s,p.s)}cx.globalAlpha=1;requestAnimationFrame(loop)})();
+
+/* ---------- posisi & zona ---------- */
+function zoneOf(x){return x<0.4?'L':x>0.6?'R':'mid'}
+function setPos(x){people[0]=Math.max(.03,Math.min(.97,x));renderPeople()}
+function setPeople(a){people=a.map(x=>Math.max(.03,Math.min(.97,x)));renderPeople()}
+function counts(){const c={L:0,mid:0,R:0};people.forEach(x=>c[zoneOf(x)]++);return c}
+function upScore(){$('score').textContent='Benar: '+sumC+'/'+sumT}
+function renderPeople(){const box=$('people');while(box.children.length<people.length){const d=document.createElement('div');d.className='person';d.textContent='🧍';box.appendChild(d)}while(box.children.length>people.length)box.lastChild.remove();people.forEach((x,i)=>box.children[i].style.left=(x*100)+'%');const c=counts();$('cL').textContent=c.L;$('cM').textContent=c.mid;$('cR').textContent=c.R;$('zL').style.opacity=c.L?1:.6;$('zR').style.opacity=c.R?1:.6;$('zM').style.opacity=c.mid?1:.6}
+function _o(){
+  }
+
+/* input manual: keyboard + sentuh/mouse */
+addEventListener('keydown',e=>{if(mode!=='manual')return;if(e.key==='ArrowLeft')setPeople(people.map(x=>x-.08));if(e.key==='ArrowRight')setPeople(people.map(x=>x+.08))});
+let drag=false;const stage=$('stage');
+let dragI=-1;
+stage.addEventListener('pointerdown',e=>{if(mode!=='manual'||e.target.closest('button')||!(phase==='play'||phase==='ready'))return;const x=e.clientX/innerWidth;let b=-1,bd=.08;people.forEach((p,i)=>{if(Math.abs(p-x)<bd){bd=Math.abs(p-x);b=i}});if(b<0){people.push(x);b=people.length-1}dragI=b;drag=true;setPeople(people)});
+stage.addEventListener('pointermove',e=>{if(drag&&mode==='manual'&&dragI>=0){people[dragI]=e.clientX/innerWidth;setPeople(people)}});
+addEventListener('pointerup',()=>drag=false);
+
+/* ---------- kamera ---------- */
+async function enableCam(){
+  const st=$('camStatus');st.textContent='Meminta izin kamera...';
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});
+    const v=$('cam');v.srcObject=stream;await v.play();
+  }catch(e){st.textContent='Kamera tidak bisa diakses ('+(e.name||'error')+'). Pakai mode keyboard/sentuh.';return}
+  mode='cam';setPeople([]);st.textContent='Kamera aktif. Memuat deteksi pose...';
+  startMotionTracker();
+  loadPose(st);
+}
+/* cadangan: pelacak gerak (selisih frame) berjalan tanpa model */
+function startMotionTracker(){
+  const c=document.createElement('canvas');c.width=64;c.height=48;const g=c.getContext('2d',{willReadFrequently:true});let bg=null,sm=0.5;
+  tracker=setInterval(()=>{
+    if(landmarker&&landmarker.ok)return;
+    const v=$('cam');if(v.readyState<2)return;
+    g.drawImage(v,0,0,64,48);const d=g.getImageData(0,0,64,48).data;const cur=new Float32Array(3072);
+    for(let i=0;i<3072;i++)cur[i]=(d[i*4]+d[i*4+1]+d[i*4+2])/3;
+    if(!bg){bg=cur.slice();return}
+    let n=0;const col=new Array(64).fill(0);
+    for(let i=0;i<3072;i++){if(Math.abs(cur[i]-bg[i])>38){n++;col[i%64]++}bg[i]=bg[i]*.99+cur[i]*.01}
+    if(n>40){const res=[];let s=-1;for(let c=0;c<=64;c++){const on=c<64&&col[c]>=2;if(on&&s<0)s=c;if(!on&&s>=0){const w=c-s;if(w>=2){const k=Math.max(1,Math.round(w/7));for(let j=0;j<k;j++)res.push(1-(s+(j+.5)*w/k)/64)}s=-1}}if(res.length)setPeople(res)}
+  },80);
+}
+/* MediaPipe Pose (jika model berhasil dimuat) */
+async function loadPose(st){
+  try{
+    const T=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+    const fs=await T.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    const pl=await T.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'},runningMode:'VIDEO',numPoses:12});
+    landmarker={ok:true};st.textContent='Kamera + MediaPipe Pose aktif ✔';
+    const v=$('cam');let last=-1;
+    (function run(){
+      if(v.currentTime!==last){last=v.currentTime;
+        const r=pl.detectForVideo(v,performance.now());
+        if(r.landmarks)setPeople(r.landmarks.map(L=>1-[11,12,23,24].reduce((a,i)=>a+L[i].x,0)/4))}
+      requestAnimationFrame(run)})();
+  }catch(e){landmarker=null;st.textContent='Kamera aktif (mode pelacak gerak: bergeraklah ke kiri/kanan) ✔'}
+}
+
+/* ---------- alur game ---------- */
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function show(id,on){$(id).classList.toggle('hidden',!on)}
+function startGame(){
+  if(ac&&ac.state==='suspended')ac.resume();
+  qs=shuffle(BANK).slice(0,10);idx=0;score=0;sumC=0;sumT=0;
+  ['landing','result','fb'].forEach(i=>show(i,false));['zones','hud'].forEach(i=>show(i,true));
+  if(mode==='manual')setPeople([.5]);show('ctl',mode==='manual');renderPeople();getReady();
+}
+function getReady(){
+  phase='ready';let c=5;const f=$('fb');f.className='screen pop';f.style.background='rgba(30,27,75,.45)';show('fb',true);
+  const draw=()=>{f.innerHTML='<div class="font-black text-amber-300 text-3xl md:text-6xl">SIAP-SIAP! Berdiri di tengah</div><div class="font-black text-white" style="font-size:clamp(5rem,20vw,14rem)">'+c+'</div>'};
+  draw();const iv=setInterval(()=>{c--;if(c<=0){clearInterval(iv);nextQ()}else{draw();sfxTick()}},1000);
+}
+function nextQ(){
+  if(idx>=10)return finish();
+  phase='play';answered=false;t=TIME;
+  $('prog').textContent='Soal '+(idx+1)+' dari 10';upScore();
+  $('q').textContent=qs[idx][0];$('q').classList.remove('pop');void $('q').offsetWidth;$('q').classList.add('pop');
+  $('timer').textContent=t;$('bar').style.transition='none';$('bar').style.width='100%';
+  requestAnimationFrame(()=>{$('bar').style.transition='width '+TIME+'s linear';$('bar').style.width='0%'});
+  show('fb',false);renderPeople();
+  clearInterval(tick);tick=setInterval(()=>{t--;$('timer').textContent=Math.max(t,0);if(t>0&&t<=3)sfxTick();if(t<=0){clearInterval(tick);lock()}},1000);
+}
+function lock(){
+  if(answered)return;answered=true;phase='reveal';
+  const q=qs[idx];const c=counts();const nOk=q[1]?c.R:c.L,nTot=people.length,nBad=nTot-nOk;sumC+=nOk;sumT+=nTot;
+  const ok=nTot>0&&nOk>nBad;
+  if(ok){sfxOk();burst(['#facc15','#22c55e','#38bdf8','#f472b6'])}else{sfxBad();stage.classList.add('shake');setTimeout(()=>stage.classList.remove('shake'),500)}
+  upScore();
+  const f=$('fb');f.className='screen pop';f.style.background=ok?'rgba(22,163,74,.88)':'rgba(220,38,38,.88)';
+  f.innerHTML='<div class="text-7xl md:text-9xl">'+(nTot?(ok?'🎉':'😅'):'🤷')+'</div><div class="font-black text-white text-4xl md:text-7xl my-2">'+(nTot?(ok?'KELAS BENAR!':'BELUM TEPAT!'):'TIDAK ADA PEMAIN')+'</div><div class="text-white font-black text-2xl md:text-5xl mb-2">👥 '+nTot+' orang • ✅ '+nOk+' benar • ❌ '+nBad+' salah (termasuk yang di tengah)</div><div class="text-white font-bold text-lg md:text-3xl max-w-4xl">Jawaban: '+(q[1]?'BENAR':'SALAH')+'<br><span class="font-semibold">'+q[2]+'</span></div>';
+  setTimeout(()=>{idx++;nextQ()},3800);
+}
+function finish(){
+  phase='result';clearInterval(tick);['zones','hud','fb','ctl'].forEach(i=>show(i,false));show('result',true);
+  const pct=sumT?Math.round(sumC/sumT*100):0;const n=pct>=85?3:pct>=65?2:pct>=40?1:0;
+  $('stars').textContent='⭐'.repeat(n)+'☆'.repeat(3-n);
+  $('finalScore').textContent=pct+'%';$('detail').textContent='Total '+sumC+' dari '+sumT+' jawaban peserta benar';
+  $('msg').textContent=pct===100?'Sempurna! Kamu Maestro Patung! 🏆':pct>=70?'Hebat! Pemahamanmu sangat baik! 👏':pct>=40?'Lumayan! Ayo belajar lagi biar makin jago! 💪':'Jangan menyerah, coba lagi ya! 🌟';
+  if(pct>=70){sfxOk();burst(['#facc15','#f472b6','#38bdf8','#22c55e'],220)}
+}
+$('btnAdd').onclick=()=>{people.push(.2+Math.random()*.6);renderPeople()};$('btnDel').onclick=()=>{people.pop();renderPeople()};$('btnCam').onclick=enableCam;$('btnStart').onclick=startGame;$('btnAgain').onclick=startGame;
+</script>
+</body>
+</html>
